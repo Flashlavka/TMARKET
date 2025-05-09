@@ -14,7 +14,7 @@ encoding.default = "CP1251"
 local search = ffi.new("char[128]", "")
 local window = imgui.new.bool(false)
 local configPath = getWorkingDirectory() .. "\\config\\market_price.ini"
-local updateURL = "https://raw.githubusercontent.com/legacy-Chay/legacy/refs/heads/main/update.json"
+local updateURL = "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/update.json"
 
 local configURL, items, cachedNick = nil, {}, nil
 
@@ -116,10 +116,10 @@ function main()
 
     if checkNick(cachedNick) then
         downloadConfigFile(loadData)
-        sampAddChatMessage("{4169E1}[Tmarket загружен v1]{FFFFFF}. {00BFFF}Активация:{FFFFFF} {DA70D6}/lm {FFFFFF}. Автор: {1E90FF}legacy{FFFFFF}", 0x00FF00FF)
+        sampAddChatMessage("{4169E1}[Tmarket Г§Г ГЈГ°ГіГ¦ГҐГ­ v1]{FFFFFF}. {00BFFF}ГЂГЄГІГЁГўГ Г¶ГЁГї:{FFFFFF} {DA70D6}/lm {FFFFFF}. ГЂГўГІГ®Г°: {1E90FF}legacy{FFFFFF}", 0x00FF00FF)
     else
-        sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}У вас {FF0000}нет доступа{FFFFFF}. Приобретите {32CD32}Tmarket{FFFFFF} для использования.", 0xFFFFFF)
-        sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}Вы можете приобрести скрипт - {1E90FF}https://t.me/legacy_chay{FFFFFF}", 0xFFFFFF)
+        sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}Г“ ГўГ Г± {FF0000}Г­ГҐГІ Г¤Г®Г±ГІГіГЇГ {FFFFFF}. ГЏГ°ГЁГ®ГЎГ°ГҐГІГЁГІГҐ {32CD32}Tmarket{FFFFFF} Г¤Г«Гї ГЁГ±ГЇГ®Г«ГјГ§Г®ГўГ Г­ГЁГї.", 0xFFFFFF)
+        sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}Г‚Г» Г¬Г®Г¦ГҐГІГҐ ГЇГ°ГЁГ®ГЎГ°ГҐГ±ГІГЁ Г±ГЄГ°ГЁГЇГІ - {1E90FF}https://t.me/legacy_chay{FFFFFF}", 0xFFFFFF)
         return
     end
 
@@ -137,17 +137,17 @@ imgui.OnFrame(
     function()
         imgui.SetNextWindowSize(imgui.ImVec2(1000, 600), imgui.Cond.FirstUseEver)
         imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.08, 0.08, 0.15, 1.0))
-        imgui.Begin(u8("Tmarket - Онлайн Таблица Цен в Скрипте"), window)
+        imgui.Begin(u8("Tmarket - ГЋГ­Г«Г Г©Г­ Г’Г ГЎГ«ГЁГ¶Г  Г–ГҐГ­ Гў Г‘ГЄГ°ГЁГЇГІГҐ"), window)
 
-        imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
+        imgui.InputTextWithHint("##search", u8("ГЏГ®ГЁГ±ГЄ ГЇГ® ГІГ®ГўГ Г°Г Г¬..."), search, ffi.sizeof(search))
         imgui.SameLine()
-        if imgui.Button(u8("В разработке")) then saveData() end
+        if imgui.Button(u8("Г‚ Г°Г Г§Г°Г ГЎГ®ГІГЄГҐ")) then saveData() end
 
         imgui.Separator()
         imgui.Columns(3)
-        imgui.Text(u8("Товар")); imgui.NextColumn()
-        imgui.Text(u8("Скупка")); imgui.NextColumn()
-        imgui.Text(u8("Продажа")); imgui.NextColumn()
+        imgui.Text(u8("Г’Г®ГўГ Г°")); imgui.NextColumn()
+        imgui.Text(u8("Г‘ГЄГіГЇГЄГ ")); imgui.NextColumn()
+        imgui.Text(u8("ГЏГ°Г®Г¤Г Г¦Г ")); imgui.NextColumn()
         imgui.Separator()
 
         local filter = u8:decode(ffi.string(search)):lower()
