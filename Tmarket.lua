@@ -13,7 +13,7 @@ encoding.default = "CP1251"
 local u8 = encoding.UTF8
 
 local configPath = getWorkingDirectory() .. "\\config\\market_price.ini"
-local updateURL = "https://raw.githubusercontent.com/legacy-Chay/Tmarket/refs/heads/main/update.json"
+local updateURL = "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/update.json"
 local configURL, cachedNick = nil, nil
 local window = imgui.new.bool(false)
 local search = ffi.new("char[128]", "")
