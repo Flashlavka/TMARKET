@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.75")
+script_version("1.76")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -13,7 +13,7 @@ encoding.default = "CP1251"
 local u8 = encoding.UTF8
 
 local configPath = getWorkingDirectory() .. "\\config\\market_price.ini"
-local updateURL = "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/update.json"
+local updateURL = "https://raw.githubusercontent.com/legacy-Chay/Tmarket/refs/heads/main/update.json"
 local configURL, cachedNick = nil, nil
 local window = imgui.new.bool(false)
 local search = ffi.new("char[128]", "")
@@ -227,7 +227,8 @@ sampAddChatMessage(string.format("{80C0FF}Tmarket {6A5ACD}v%s {FFFFFF}загру
             sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
         end)
     else
-      sampAddChatMessage("{FF8C00}[Tmarket]\n{FFFFFF}У вас {FF0000}нет доступа{FFFFFF}.\nПриобретите {32CD32}Tmarket{FFFFFF} для использования.", -1)
+sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}У вас {FF0000}нет доступа{FFFFFF}.", -1)
+sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}Приобретите скрипт по ссылке: {1E90FF}https://example.com", -1)
     end
 
     while true do wait(500) end
