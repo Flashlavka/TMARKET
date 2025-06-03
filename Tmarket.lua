@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.77")
+script_version("1.78")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -86,36 +86,63 @@ local function saveData()
     saveToFile(configPath, table.concat(out, "\n") .. "\n")
 end
 
-local function checkNick(nick)
-    local res = requests.get(updateURL)
-    if res.status_code ~= 200 then return false end
-
-    local j = json.decode(res.text)
-    if not j then return false end
-    configURL = j.config_url
-
-    for _, n in ipairs(j.nicknames or {}) do
-        if nick == n then
-            if thisScript().version ~= j.last then
-                downloadUrlToFile(j.url, thisScript().path, function(_, s)
-                    if s == dlstatus.STATUSEX_ENDDOWNLOAD then
-                        convertAndRewrite(thisScript().path)
-                        thisScript():reload()
-                    end
-                end)
-            end
-            return true
-        end
+-- Асинхронная проверка ника и обновления скрипта
+local function checkNick(nick, callback)
+    if not nick then
+        if callback then callback(false) end
+        return
     end
-    return false
+    -- Запрос JSON с данными обновления
+    sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Проверка обновлений...", -1)
+    asyncHttpRequest(updateURL, function(success, response)
+        if not success or not response or response.status ~= 200 then
+            if callback then callback(false) end
+            return
+        end
+        local j = json.decode(response.text)
+        if not j then
+            if callback then callback(false) end
+            return
+        end
+        configURL = j.config_url
+
+        local hasAccess = false
+        for _, n in ipairs(j.nicknames or {}) do
+            if nick == n then
+                hasAccess = true
+                break
+            end
+        end
+        if not hasAccess then
+            if callback then callback(false) end
+            return
+        end
+
+        if thisScript().version ~= j.last and j.url then
+            -- Обновляем скрипт
+            sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Доступно обновление, загружаю...", -1)
+            downloadUrlToFile(j.url, thisScript().path, function(_, status)
+                if status == dlstatus.STATUSEX_ENDDOWNLOAD then
+                    convertAndRewrite(thisScript().path)
+                    sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Обновление завершено, перезагружаюсь...", -1)
+                    thisScript():reload()
+                end
+            end)
+        end
+
+        if callback then callback(true) end
+    end)
 end
 
 local function downloadConfigFile(callback)
-    if not configURL then return end
-    downloadUrlToFile(configURL, configPath, function(_, s)
-        if s == dlstatus.STATUSEX_ENDDOWNLOAD and callback then
+    if not configURL then
+        if callback then callback() end
+        return
+    end
+    downloadUrlToFile(configURL, configPath, function(_, status)
+        if status == dlstatus.STATUSEX_ENDDOWNLOAD then
             convertAndRewrite(configPath)
-            callback()
+            if callback then callback() end
         end
     end)
 end
@@ -144,20 +171,23 @@ end
 function main()
     repeat wait(0) until isSampAvailable()
 
+    -- Ждем ник игрока
     repeat
         cachedNick = getNicknameSafe()
         wait(500)
     until cachedNick
 
-    if checkNick(cachedNick) then
-        downloadConfigFile(function()
-            loadData()
-            sampAddChatMessage(string.format("{80C0FF}Tmarket {6A5ACD}v%s {FFFFFF}загружен | {B0C4DE}Команда {FFFFFF}/tmarket {B0C4DE}для запуска", thisScript().version), -1)
-            sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
-        end)
-    else
-        sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}У вас {FF0000}нет доступа{FFFFFF}.", -1)
-    end
+    checkNick(cachedNick, function(hasAccess)
+        if hasAccess then
+            downloadConfigFile(function()
+                loadData()
+                sampAddChatMessage(string.format("{80C0FF}Tmarket {6A5ACD}v%s {FFFFFF}загружен | {B0C4DE}Команда {FFFFFF}/tmarket {B0C4DE}для запуска", thisScript().version), -1)
+                sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
+            end)
+        else
+            sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}У вас {FF0000}нет доступа{FFFFFF}.", -1)
+        end
+    end)
 
     imgui.OnInitialize(theme)
 
@@ -238,4 +268,18 @@ function main()
 
         imgui.End()
     end)
+end
+
+-- Асинхронный HTTP запрос с обработчиком (используем MoonLoader)
+function asyncHttpRequest(url, callback)
+    local requests = require("requests")
+    local co = coroutine.create(function()
+        local r = requests.get(url)
+        if r and r.status_code == 200 then
+            callback(true, {status = 200, text = r.text})
+        else
+            callback(false, nil)
+        end
+    end)
+    coroutine.resume(co)
 end
