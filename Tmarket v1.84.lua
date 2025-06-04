@@ -43,10 +43,10 @@ end
 
 local function toLowerCyrillic(str)
     local map = {
-        ["А"]="а",["Б"]="б",["В"]="в",["Г"]="г",["Д"]="д",["Е"]="е",["Ё"]="ё",["Ж"]="ж",["З"]="з",["И"]="и",
-        ["Й"]="й",["К"]="к",["Л"]="л",["М"]="м",["Н"]="н",["О"]="о",["П"]="п",["Р"]="р",["С"]="с",["Т"]="т",
-        ["У"]="у",["Ф"]="ф",["Х"]="х",["Ц"]="ц",["Ч"]="ч",["Ш"]="ш",["Щ"]="щ",["Ъ"]="ъ",["Ы"]="ы",["Ь"]="ь",
-        ["Э"]="э",["Ю"]="ю",["Я"]="я"
+        ["ГЂ"]="Г ",["ГЃ"]="ГЎ",["Г‚"]="Гў",["Гѓ"]="ГЈ",["Г„"]="Г¤",["Г…"]="ГҐ",["ВЁ"]="Вё",["Г†"]="Г¦",["Г‡"]="Г§",["Г€"]="ГЁ",
+        ["Г‰"]="Г©",["ГЉ"]="ГЄ",["Г‹"]="Г«",["ГЊ"]="Г¬",["ГЌ"]="Г­",["ГЋ"]="Г®",["ГЏ"]="ГЇ",["Гђ"]="Г°",["Г‘"]="Г±",["Г’"]="ГІ",
+        ["Г“"]="Гі",["Г”"]="Гґ",["Г•"]="Гµ",["Г–"]="Г¶",["Г—"]="Г·",["Г"]="Гё",["Г™"]="Г№",["Гљ"]="Гє",["Г›"]="Г»",["Гњ"]="Гј",
+        ["Гќ"]="ГЅ",["Гћ"]="Гѕ",["Гџ"]="Гї"
     }
     for up, low in pairs(map) do str = str:gsub(up, low) end
     return str:lower()
@@ -158,11 +158,11 @@ function main()
         if hasAccess then
             downloadConfigFile(function()
                 loadData()
-                sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFFFFF} загружен  |  Активация: {A47AFF}/tmarket{FFFFFF}  |  Версия: {A47AFF}v%s{FFFFFF}  |  Автор: {FFD700}legacy.", thisScript().version), -1)
+                sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFFFFF} Г§Г ГЈГ°ГіГ¦ГҐГ­  |  ГЂГЄГІГЁГўГ Г¶ГЁГї: {A47AFF}/tmarket{FFFFFF}  |  Г‚ГҐГ°Г±ГЁГї: {A47AFF}v%s{FFFFFF}  |  ГЂГўГІГ®Г°: {FFD700}legacy.", thisScript().version), -1)
                 sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
             end)
         else
-            sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}У вас {FF0000}нет доступа{FFFFFF}.", -1)
+            sampAddChatMessage("{FF8C00}[Tmarket] {FFFFFF}Г“ ГўГ Г± {FF0000}Г­ГҐГІ Г¤Г®Г±ГІГіГЇГ {FFFFFF}.", -1)
         end
     end)
 
@@ -174,12 +174,12 @@ function main()
         imgui.SetNextWindowSize(imgui.ImVec2(900, 600), imgui.Cond.FirstUseEver)
         imgui.SetNextWindowPos(imgui.ImVec2(resX / 2, resY / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
 
-if not imgui.Begin(u8("Tmarket — Таблица цен v" .. thisScript().version .. ". Автор — legacy."), window) then imgui.End() return end
+if not imgui.Begin(u8("Tmarket вЂ” Г’Г ГЎГ«ГЁГ¶Г  Г¶ГҐГ­ v" .. thisScript().version .. ". ГЂГўГІГ®Г° вЂ” legacy."), window) then imgui.End() return end
 
-        imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
+        imgui.InputTextWithHint("##search", u8("ГЏГ®ГЁГ±ГЄ ГЇГ® ГІГ®ГўГ Г°Г Г¬..."), search, ffi.sizeof(search))
         imgui.SameLine()
-        if imgui.Button(u8("В разработке")) then
-            sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Функция в разработке.", -1)
+        if imgui.Button(u8("Г‚ Г°Г Г§Г°Г ГЎГ®ГІГЄГҐ")) then
+            sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Г”ГіГ­ГЄГ¶ГЁГї Гў Г°Г Г§Г°Г ГЎГ®ГІГЄГҐ.", -1)
         end
 
         imgui.Separator()
@@ -205,7 +205,7 @@ if not imgui.Begin(u8("Tmarket — Таблица цен v" .. thisScript().version .. ". Ав
             draw:AddLine(imgui.ImVec2(x1, y0), imgui.ImVec2(x1, y1), sepColor, 1)
 
             imgui.Columns(3, nil, false)
-            for _, header in ipairs({u8("Товар"), u8("Скупка"), u8("Продажа")}) do
+            for _, header in ipairs({u8("Г’Г®ГўГ Г°"), u8("Г‘ГЄГіГЇГЄГ "), u8("ГЏГ°Г®Г¤Г Г¦Г ")}) do
                 imgui.SetCursorPosX(imgui.GetCursorPosX() + (colWidth - imgui.CalcTextSize(header).x) / 2)
                 imgui.Text(header)
                 imgui.NextColumn()
@@ -226,7 +226,7 @@ if not imgui.Begin(u8("Tmarket — Таблица цен v" .. thisScript().version .. ". Ав
             imgui.Columns(1)
             imgui.EndChild()
         else
-            local text = u8("Товары не найдены")
+            local text = u8("Г’Г®ГўГ Г°Г» Г­ГҐ Г­Г Г©Г¤ГҐГ­Г»")
             local avail = imgui.GetContentRegionAvail()
             imgui.SetCursorPosX((avail.x - imgui.CalcTextSize(text).x) / 2)
             imgui.Text(text)
