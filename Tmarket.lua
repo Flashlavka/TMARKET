@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.82")
+script_version("1.83")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -20,7 +20,6 @@ local window = imgui.new.bool(false)
 local search = ffi.new("char[128]", "")
 local items = {}
 
--- ───── Утилиты ─────
 local function utf8ToCp1251(str)
     return iconv.new("WINDOWS-1251", "UTF-8"):iconv(str)
 end
@@ -53,7 +52,6 @@ local function toLowerCyrillic(str)
     return str:lower()
 end
 
--- ───── Загрузка/сохранение ─────
 local function loadData()
     items = {}
     local f = io.open(configPath, "r")
@@ -83,7 +81,6 @@ local function saveData()
     saveToFile(configPath, table.concat(out, "\n") .. "\n")
 end
 
--- ───── Сеть ─────
 local function asyncHttpRequest(url, callback)
     local co = coroutine.create(function()
         local r = requests.get(url)
@@ -98,7 +95,6 @@ end
 
 local function checkNick(nick, callback)
     if not nick then callback(false) return end
-    sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Проверка обновлений...", -1)
 
     asyncHttpRequest(updateURL, function(success, response)
         if not success or response.status ~= 200 then callback(false) return end
@@ -113,11 +109,9 @@ local function checkNick(nick, callback)
         if not hasAccess then callback(false) return end
 
         if thisScript().version ~= j.last and j.url then
-            sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Доступно обновление, загружаю...", -1)
             downloadUrlToFile(j.url, thisScript().path, function(_, status)
                 if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
                     convertAndRewrite(thisScript().path)
-                    sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Обновление завершено, перезагружаюсь...", -1)
                     thisScript():reload()
                 end
             end)
@@ -141,7 +135,6 @@ local function getNicknameSafe()
     return (ok and id >= 0 and id <= 1000) and sampGetPlayerNickname(id) or nil
 end
 
--- ───── Интерфейс ─────
 local function theme()
     local s, c = imgui.GetStyle(), imgui.Col
     local clr = s.Colors
@@ -165,7 +158,7 @@ function main()
         if hasAccess then
             downloadConfigFile(function()
                 loadData()
-sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFFFFF} загружен  |  Активация: {A47AFF}/tmarket{FFFFFF}  |  Версия: {A47AFF}v%s{FFFFFF}  |  Автор: {FFD700}legacy.", thisScript().version), -1)
+                sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFFFFF} загружен  |  Активация: {A47AFF}/tmarket{FFFFFF}  |  Версия: {A47AFF}v%s{FFFFFF}  |  Автор: {FFD700}legacy.", thisScript().version), -1)
                 sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
             end)
         else
