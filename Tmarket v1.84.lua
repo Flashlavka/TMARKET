@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.84")
+script_version("1.85")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -179,7 +179,7 @@ if not imgui.Begin(u8("Tmarket — Таблица цен v" .. thisScript().vers
         imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
         imgui.SameLine()
         if imgui.Button(u8("В разработке")) then
-            sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Функция в разработке.", -1)
+            sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Функция в разработке..", -1)
         end
 
         imgui.Separator()
