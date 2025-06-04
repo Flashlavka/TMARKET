@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.83")
+script_version("1.84")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -174,7 +174,7 @@ function main()
         imgui.SetNextWindowSize(imgui.ImVec2(900, 600), imgui.Cond.FirstUseEver)
         imgui.SetNextWindowPos(imgui.ImVec2(resX / 2, resY / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
 
-        if not imgui.Begin(u8("legacy.-Tmarket — Таблица цен v1.81"), window) then imgui.End() return end
+if not imgui.Begin(u8("Tmarket — Таблица цен v" .. thisScript().version .. ". Автор — legacy."), window) then imgui.End() return end
 
         imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
         imgui.SameLine()
