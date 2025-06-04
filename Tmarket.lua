@@ -165,7 +165,7 @@ function main()
         if hasAccess then
             downloadConfigFile(function()
                 loadData()
-                sampAddChatMessage(string.format("{80C0FF}Tmarket {6A5ACD}v%s {FFFFFF}загружен | {B0C4DE}Команда {FFFFFF}/tmarket", thisScript().version), -1)
+sampAddChatMessage(string.format("{C285FF}[Tmarket]{FFFFFF} загружен  |  Активация: {C285FF}/tmarket{FFFFFF}  |  Версия: {C285FF}v%s{FFFFFF}  |  Автор: {FFD700}legacy.", thisScript().version), -1)
                 sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
             end)
         else
