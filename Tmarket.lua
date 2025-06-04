@@ -1,11 +1,11 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.81")
+script_version("1.82")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
 local requests = require("requests")
-local dlstatus = require("moonloader").download_status
+local moonloader = require("moonloader")
 local iconv = require("iconv")
 local imgui = require("mimgui")
 local json = require("json")
@@ -20,7 +20,7 @@ local window = imgui.new.bool(false)
 local search = ffi.new("char[128]", "")
 local items = {}
 
--- Утилиты
+-- ───── Утилиты ─────
 local function utf8ToCp1251(str)
     return iconv.new("WINDOWS-1251", "UTF-8"):iconv(str)
 end
@@ -43,20 +43,17 @@ local function convertAndRewrite(path)
 end
 
 local function toLowerCyrillic(str)
-    if not str then return "" end
     local map = {
-        ["А"]="а", ["Б"]="б", ["В"]="в", ["Г"]="г", ["Д"]="д", ["Е"]="е", ["Ё"]="ё", ["Ж"]="ж", ["З"]="з", ["И"]="и",
-        ["Й"]="й", ["К"]="к", ["Л"]="л", ["М"]="м", ["Н"]="н", ["О"]="о", ["П"]="п", ["Р"]="р", ["С"]="с", ["Т"]="т",
-        ["У"]="у", ["Ф"]="ф", ["Х"]="х", ["Ц"]="ц", ["Ч"]="ч", ["Ш"]="ш", ["Щ"]="щ", ["Ъ"]="ъ", ["Ы"]="ы", ["Ь"]="ь",
-        ["Э"]="э", ["Ю"]="ю", ["Я"]="я"
+        ["А"]="а",["Б"]="б",["В"]="в",["Г"]="г",["Д"]="д",["Е"]="е",["Ё"]="ё",["Ж"]="ж",["З"]="з",["И"]="и",
+        ["Й"]="й",["К"]="к",["Л"]="л",["М"]="м",["Н"]="н",["О"]="о",["П"]="п",["Р"]="р",["С"]="с",["Т"]="т",
+        ["У"]="у",["Ф"]="ф",["Х"]="х",["Ц"]="ц",["Ч"]="ч",["Ш"]="ш",["Щ"]="щ",["Ъ"]="ъ",["Ы"]="ы",["Ь"]="ь",
+        ["Э"]="э",["Ю"]="ю",["Я"]="я"
     }
-    for up, low in pairs(map) do
-        str = str:gsub(up, low)
-    end
+    for up, low in pairs(map) do str = str:gsub(up, low) end
     return str:lower()
 end
 
--- Работа с данными
+-- ───── Загрузка/сохранение ─────
 local function loadData()
     items = {}
     local f = io.open(configPath, "r")
@@ -86,63 +83,55 @@ local function saveData()
     saveToFile(configPath, table.concat(out, "\n") .. "\n")
 end
 
--- Асинхронная проверка ника и обновления скрипта
+-- ───── Сеть ─────
+local function asyncHttpRequest(url, callback)
+    local co = coroutine.create(function()
+        local r = requests.get(url)
+        if r and r.status_code == 200 then
+            callback(true, {status = 200, text = r.text})
+        else
+            callback(false, nil)
+        end
+    end)
+    coroutine.resume(co)
+end
+
 local function checkNick(nick, callback)
-    if not nick then
-        if callback then callback(false) end
-        return
-    end
-    -- Запрос JSON с данными обновления
+    if not nick then callback(false) return end
     sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Проверка обновлений...", -1)
+
     asyncHttpRequest(updateURL, function(success, response)
-        if not success or not response or response.status ~= 200 then
-            if callback then callback(false) end
-            return
-        end
+        if not success or response.status ~= 200 then callback(false) return end
         local j = json.decode(response.text)
-        if not j then
-            if callback then callback(false) end
-            return
-        end
+        if not j then callback(false) return end
         configURL = j.config_url
 
         local hasAccess = false
         for _, n in ipairs(j.nicknames or {}) do
-            if nick == n then
-                hasAccess = true
-                break
-            end
+            if nick == n then hasAccess = true break end
         end
-        if not hasAccess then
-            if callback then callback(false) end
-            return
-        end
+        if not hasAccess then callback(false) return end
 
         if thisScript().version ~= j.last and j.url then
-            -- Обновляем скрипт
             sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Доступно обновление, загружаю...", -1)
             downloadUrlToFile(j.url, thisScript().path, function(_, status)
-                if status == dlstatus.STATUSEX_ENDDOWNLOAD then
+                if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
                     convertAndRewrite(thisScript().path)
                     sampAddChatMessage("{A47AFF}[Tmarket] {FFFFFF}Обновление завершено, перезагружаюсь...", -1)
                     thisScript():reload()
                 end
             end)
         end
-
-        if callback then callback(true) end
+        callback(true)
     end)
 end
 
 local function downloadConfigFile(callback)
-    if not configURL then
-        if callback then callback() end
-        return
-    end
+    if not configURL then callback() return end
     downloadUrlToFile(configURL, configPath, function(_, status)
-        if status == dlstatus.STATUSEX_ENDDOWNLOAD then
+        if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
             convertAndRewrite(configPath)
-            if callback then callback() end
+            callback()
         end
     end)
 end
@@ -152,6 +141,7 @@ local function getNicknameSafe()
     return (ok and id >= 0 and id <= 1000) and sampGetPlayerNickname(id) or nil
 end
 
+-- ───── Интерфейс ─────
 local function theme()
     local s, c = imgui.GetStyle(), imgui.Col
     local clr = s.Colors
@@ -160,7 +150,6 @@ local function theme()
     s.ChildRounding = 2
     s.FrameRounding = 4
     s.ItemSpacing = imgui.ImVec2(10, 10)
-
     clr[c.Text] = imgui.ImVec4(0.95, 0.96, 0.98, 1)
     clr[c.WindowBg] = imgui.ImVec4(0.07, 0.11, 0.13, 1)
     clr[c.Button] = imgui.ImVec4(0.15, 0.20, 0.24, 1)
@@ -170,18 +159,13 @@ end
 
 function main()
     repeat wait(0) until isSampAvailable()
-
-    -- Ждем ник игрока
-    repeat
-        cachedNick = getNicknameSafe()
-        wait(500)
-    until cachedNick
+    repeat cachedNick = getNicknameSafe() wait(500) until cachedNick
 
     checkNick(cachedNick, function(hasAccess)
         if hasAccess then
             downloadConfigFile(function()
                 loadData()
-                sampAddChatMessage(string.format("{80C0FF}Tmarket {6A5ACD}v%s {FFFFFF}загружен | {B0C4DE}Команда {FFFFFF}/tmarket {B0C4DE}для запуска", thisScript().version), -1)
+                sampAddChatMessage(string.format("{80C0FF}Tmarket {6A5ACD}v%s {FFFFFF}загружен | {B0C4DE}Команда {FFFFFF}/tmarket", thisScript().version), -1)
                 sampRegisterChatCommand("tmarket", function() window[0] = not window[0] end)
             end)
         else
@@ -190,7 +174,6 @@ function main()
     end)
 
     imgui.OnInitialize(theme)
-
     imgui.OnFrame(function()
         return window[0] and not (isPauseMenuActive() or isGamePaused() or sampIsDialogActive())
     end, function()
@@ -198,10 +181,7 @@ function main()
         imgui.SetNextWindowSize(imgui.ImVec2(900, 600), imgui.Cond.FirstUseEver)
         imgui.SetNextWindowPos(imgui.ImVec2(resX / 2, resY / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
 
-        if not imgui.Begin(u8("legacy.-Tmarket — Таблица цен v1.3"), window) then
-            imgui.End()
-            return
-        end
+        if not imgui.Begin(u8("legacy.-Tmarket — Таблица цен v1.81"), window) then imgui.End() return end
 
         imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
         imgui.SameLine()
@@ -210,7 +190,6 @@ function main()
         end
 
         imgui.Separator()
-
         local width = imgui.GetContentRegionAvail().x
         local colWidth = (width - 20) / 3
         local filter = toLowerCyrillic(decode(search))
@@ -224,13 +203,11 @@ function main()
 
         if #filtered > 0 then
             imgui.BeginChild("##scroll", imgui.ImVec2(-1, imgui.GetContentRegionAvail().y), true)
-
             local pos = imgui.GetCursorScreenPos()
             local y0, y1 = pos.y - imgui.GetStyle().ItemSpacing.y, pos.y + imgui.GetContentRegionAvail().y + imgui.GetScrollMaxY()
             local x0, x1 = pos.x + colWidth, pos.x + 2 * colWidth
             local sepColor = imgui.GetColorU32(imgui.Col.Separator)
             local draw = imgui.GetWindowDrawList()
-
             draw:AddLine(imgui.ImVec2(x0, y0), imgui.ImVec2(x0, y1), sepColor, 1)
             draw:AddLine(imgui.ImVec2(x1, y0), imgui.ImVec2(x1, y1), sepColor, 1)
 
@@ -243,15 +220,12 @@ function main()
 
             imgui.Separator()
             local inputWidth = colWidth * 0.8
-
             for i, v in ipairs(filtered) do
                 for idx, buf in ipairs({v.name_buf, v.buy_buf, v.sell_buf}) do
                     imgui.SetCursorPosX(imgui.GetCursorPosX() + (colWidth - inputWidth) / 2)
                     if imgui.InputText("##"..idx..i, buf, ffi.sizeof(buf)) then
                         local val = decode(buf)
-                        if idx == 1 then v.name = val
-                        elseif idx == 2 then v.buy = val
-                        else v.sell = val end
+                        if idx == 1 then v.name = val elseif idx == 2 then v.buy = val else v.sell = val end
                     end
                     imgui.NextColumn()
                 end
@@ -259,27 +233,12 @@ function main()
             imgui.Columns(1)
             imgui.EndChild()
         else
-            local avail = imgui.GetContentRegionAvail()
             local text = u8("Товары не найдены")
-            local textSize = imgui.CalcTextSize(text)
-            imgui.SetCursorPosX((avail.x - textSize.x) / 2)
+            local avail = imgui.GetContentRegionAvail()
+            imgui.SetCursorPosX((avail.x - imgui.CalcTextSize(text).x) / 2)
             imgui.Text(text)
         end
 
         imgui.End()
     end)
-end
-
--- Асинхронный HTTP запрос с обработчиком (используем MoonLoader)
-function asyncHttpRequest(url, callback)
-    local requests = require("requests")
-    local co = coroutine.create(function()
-        local r = requests.get(url)
-        if r and r.status_code == 200 then
-            callback(true, {status = 200, text = r.text})
-        else
-            callback(false, nil)
-        end
-    end)
-    coroutine.resume(co)
 end
