@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.08")
+script_version("1.09")
 
 local ffi=require("ffi")
 local encoding=require("encoding")
@@ -47,17 +47,25 @@ local function decode(buf)
   return u8:decode(ffi.string(buf))
 end
 
-local function saveToFile(path,content)
-  local f=io.open(path,"w")
-  if f then f:write(content) f:close() end
+-- Запись файла в бинарном режиме
+local function saveToFile(path, content)
+  local f = io.open(path, "wb")  -- бинарный режим записи!
+  if f then
+    f:write(content)
+    f:close()
+  end
 end
 
+-- Чтение и перекодировка файла с UTF-8 в CP1251, с последующей записью
 local function convertAndRewrite(path)
-  local f=io.open(path,"r")
+  local f = io.open(path, "rb") -- бинарный режим чтения!
   if not f then return end
-  local content=f:read("*a")
+  local content = f:read("*a")
   f:close()
-  saveToFile(path,utf8ToCp1251(content))
+  local converted = utf8ToCp1251(content)
+  if converted then
+    saveToFile(path, converted)
+  end
 end
 
 local function toLowerCyrillic(str)
