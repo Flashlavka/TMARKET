@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.09")
+script_version("1.10")
 
 local ffi=require("ffi")
 local encoding=require("encoding")
@@ -33,38 +33,37 @@ local conversionRateSell = 1.0
 local buyInputChanged = false
 local sellInputChanged = false
 
-local function createConfigFolder()
-  if not lfs.attributes(configFolder) then lfs.mkdir(configFolder) end
-end
-
--- Создаем один объект конвертера UTF-8 → CP1251
 local conv_utf8_to_cp1251 = iconv.new("CP1251","UTF-8")
+
 local function utf8ToCp1251(str)
   return conv_utf8_to_cp1251:iconv(str)
+end
+
+local function createConfigFolder()
+  if not lfs.attributes(configFolder) then lfs.mkdir(configFolder) end
 end
 
 local function decode(buf)
   return u8:decode(ffi.string(buf))
 end
 
--- Запись файла в бинарном режиме
-local function saveToFile(path, content)
-  local f = io.open(path, "wb")  -- бинарный режим записи!
-  if f then
-    f:write(content)
-    f:close()
-  end
+local function saveToFile(path,content)
+  local f=io.open(path,"w")
+  if f then f:write(content) f:close() end
 end
 
--- Чтение и перекодировка файла с UTF-8 в CP1251, с последующей записью
 local function convertAndRewrite(path)
-  local f = io.open(path, "rb") -- бинарный режим чтения!
+  local f=io.open(path,"r")
   if not f then return end
-  local content = f:read("*a")
+  local content=f:read("*a")
   f:close()
   local converted = utf8ToCp1251(content)
   if converted then
-    saveToFile(path, converted)
+    local f2=io.open(path,"w")
+    if f2 then
+      f2:write(converted)
+      f2:close()
+    end
   end
 end
 
@@ -119,7 +118,9 @@ local function saveData()
     table.insert(out,formatPrice(strToNumber(v.buy)))
     table.insert(out,formatPrice(strToNumber(v.sell)))
   end
-  saveToFile(configPath,table.concat(out,"\n").."\n")
+  local utf8text = table.concat(out,"\n").."\n"
+  local cp1251text = utf8ToCp1251(utf8text)
+  saveToFile(configPath, cp1251text)
 end
 
 local function asyncHttpRequest(url,callback)
@@ -155,7 +156,7 @@ local function downloadConfigFile(callback)
   if not configURL then callback() return end
   downloadUrlToFile(configURL,configPath,function(_,status)
     if status==moonloader.download_status.STATUSEX_ENDDOWNLOAD then
-      convertAndRewrite(configPath) -- конвертация в CP1251 сразу после скачивания
+      convertAndRewrite(configPath) -- конвертация в CP1251 после скачивания
       callback()
     end
   end)
@@ -269,14 +270,14 @@ function main()
       downloadConfigFile(function()
         loadData()
         applyConversionRates()
-        sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFFFFF} загружен  |  Активация: {A47AFF}/tm{FFFFFF}  |  Версия: {A47AFF}%s{FFFFFF}  |  Автор: {FFD700}legacy.",thisScript().version),-1)
+        sampAddChatMessage(utf8ToCp1251(string.format("{A47AFF}[Tmarket]{FFFFFF} загружен  |  Активация: {A47AFF}/tm{FFFFFF}  |  Версия: {A47AFF}%s{FFFFFF}  |  Автор: {FFD700}legacy.",thisScript().version)),-1)
         sampRegisterChatCommand("tm",function()
           if window[0] then saveData() end
           window[0]=not window[0]
         end)
       end)
     else
-      sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFD700} %s{FFFFFF}, у вас {FF4C4C}нет доступа к скрипту{FFFFFF}.",cachedNick or "?"),-1)
+      sampAddChatMessage(utf8ToCp1251(string.format("{A47AFF}[Tmarket]{FFD700} %s{FFFFFF}, у вас {FF4C4C}нет доступа к скрипту{FFFFFF}.",cachedNick or "?")),-1)
     end
   end)
 
@@ -319,11 +320,11 @@ function main()
             convertAndRewrite(configPath)
             loadData()
             applyConversionRates()
-            sampAddChatMessage("{A47AFF}[Tmarket]{FFFFFF} Цены успешно обновлены.", -1)
+            sampAddChatMessage(utf8ToCp1251("{A47AFF}[Tmarket]{FFFFFF} Цены успешно обновлены."), -1)
           end
         end)
       else
-        sampAddChatMessage("{A47AFF}[Tmarket]{FFFFFF} URL конфигурации не найден.", -1)
+        sampAddChatMessage(utf8ToCp1251("{A47AFF}[Tmarket]{FFFFFF} URL конфигурации не найден."), -1)
       end
     end
 
@@ -392,32 +393,37 @@ function main()
       imgui.Separator()
       local inputWidth=colWidth*0.8
       for i,v in ipairs(filtered) do
-        for idx,buf in ipairs({v.name_buf,v.buy_buf,v.sell_buf}) do
-          imgui.SetCursorPosX(imgui.GetCursorPosX()+(colWidth-inputWidth)/2)
-          if imgui.InputText("##"..idx..i,buf,ffi.sizeof(buf)) then
-            local val=decode(buf)
-            if idx==1 then
-              v.name=val
-            elseif idx==2 then
-              v.buy=val
-              v.buy_orig = strToNumber(val)
-            else
-              v.sell=val
-              v.sell_orig = strToNumber(val)
-            end
-          end
-          imgui.NextColumn()
+        -- Имя товара (текст, не редактируемое)
+        imgui.Text(u8(v.name))
+        imgui.NextColumn()
+        -- Цена скупки (редактируемое поле)
+        imgui.SetCursorPosX(imgui.GetCursorPosX()+(colWidth-inputWidth)/2)
+        if imgui.InputText("##buy"..i, v.buy_buf, ffi.sizeof(v.buy_buf)) then
+          local val=decode(v.buy_buf):gsub("[^%d%s]","")
+          val=val:gsub("%s+", " ")
+          v.buy=val
+          v.buy_orig=strToNumber(val)
+          applyConversionRates()
         end
+        imgui.NextColumn()
+        -- Цена продажи (редактируемое поле)
+        imgui.SetCursorPosX(imgui.GetCursorPosX()+(colWidth-inputWidth)/2)
+        if imgui.InputText("##sell"..i, v.sell_buf, ffi.sizeof(v.sell_buf)) then
+          local val=decode(v.sell_buf):gsub("[^%d%s]","")
+          val=val:gsub("%s+", " ")
+          v.sell=val
+          v.sell_orig=strToNumber(val)
+          applyConversionRates()
+        end
+        imgui.NextColumn()
       end
-      imgui.Columns(1)
       imgui.EndChild()
     else
-      local text=u8("Товары не найдены.")
-      local avail=imgui.GetContentRegionAvail()
-      local text_size=imgui.CalcTextSize(text)
-      imgui.SetCursorPosX((avail.x-text_size.x)*0.5)
-      imgui.SetCursorPosY((avail.y-text_size.y)*0.5)
-      imgui.Text(text)
+      local centerX=centerX or (imgui.GetWindowWidth()/2)
+      local centerY=centerY or (imgui.GetWindowHeight()/2)
+      imgui.SetCursorPosX(centerX-50)
+      imgui.SetCursorPosY(centerY)
+      imgui.Text(u8("Ничего не найдено"))
     end
 
     imgui.End()
