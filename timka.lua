@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.12")
+script_version("1.13")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -24,6 +24,17 @@ local search = ffi.new("char[128]", "")
 local items = {}
 local windowPos = {x = nil, y = nil}
 local windowSize = {x = 900, y = 600}
+
+local conversionRateBuy = 1.0
+local conversionRateSell = 1.0
+
+local conversionRateBuyBuf = ffi.new("char[16]", "1")
+local conversionRateSellBuf = ffi.new("char[16]", "1")
+
+local buyInputChanged = false
+local sellInputChanged = false
+
+local lastWindowSize = {x = windowSize.x, y = windowSize.y}
 
 local function createConfigFolder()
     local attr = lfs.attributes(configFolder)
@@ -144,7 +155,6 @@ local function getNicknameSafe()
     return (ok and id >= 0 and id <= 1000) and sampGetPlayerNickname(id) or nil
 end
 
--- Загрузка настроек окна из set.cfg
 local function loadWindowSettings()
     local f = io.open(cfgPath, "r")
     if not f then return end
@@ -156,18 +166,50 @@ local function loadWindowSettings()
             elseif key == "posY" then windowPos.y = num
             elseif key == "sizeX" then windowSize.x = num
             elseif key == "sizeY" then windowSize.y = num
+            elseif key == "conversionRateBuy" then
+                conversionRateBuy = num
+                ffi.copy(conversionRateBuyBuf, u8(tostring(conversionRateBuy)))
+            elseif key == "conversionRateSell" then
+                conversionRateSell = num
+                ffi.copy(conversionRateSellBuf, u8(tostring(conversionRateSell)))
             end
         end
     end
     f:close()
 end
 
--- Сохранение настроек окна в set.cfg
 local function saveWindowSettings(posX, posY, sizeX, sizeY)
     local f = io.open(cfgPath, "w+")
     if not f then return end
     f:write(string.format("posX=%d\nposY=%d\nsizeX=%d\nsizeY=%d\n", posX, posY, sizeX, sizeY))
+    f:write(string.format("conversionRateBuy=%s\n", tostring(conversionRateBuy)))
+    f:write(string.format("conversionRateSell=%s\n", tostring(conversionRateSell)))
     f:close()
+end
+
+local function strToNumber(str)
+    if not str then return 0 end
+    local cleaned = str:gsub(" ", "")
+    return tonumber(cleaned) or 0
+end
+
+local function formatPrice(num)
+    local s = tostring(num)
+    local result = s:reverse():gsub("(%d%d%d)","%1 "):reverse()
+    return result:gsub("^%s+", "")
+end
+
+local function applyConversionRates()
+    for _, item in ipairs(items) do
+        local buyNum = strToNumber(item.buy)
+        local sellNum = strToNumber(item.sell)
+        local newBuy = formatPrice(math.floor(buyNum * conversionRateBuy + 0.5))
+        local newSell = formatPrice(math.floor(sellNum * conversionRateSell + 0.5))
+        item.buy = newBuy
+        item.sell = newSell
+        ffi.copy(item.buy_buf, u8(newBuy))
+        ffi.copy(item.sell_buf, u8(newSell))
+    end
 end
 
 local function theme()
@@ -210,6 +252,7 @@ function main()
         if hasAccess then
             downloadConfigFile(function()
                 loadData()
+                applyConversionRates()
                 sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFFFFF} загружен  |  Активация: {A47AFF}/tm{FFFFFF}  |  Версия: {A47AFF}v%s{FFFFFF}  |  Автор: {FFD700}legacy.", thisScript().version), -1)
                 sampRegisterChatCommand("tm", function()
                     if window[0] then saveData() end
@@ -248,18 +291,71 @@ function main()
         local size = imgui.GetWindowSize()
         saveWindowSettings(pos.x, pos.y, size.x, size.y)
 
+        if lastWindowSize.x ~= size.x or lastWindowSize.y ~= size.y then
+            lastWindowSize.x = size.x
+            lastWindowSize.y = size.y
+        end
+
+        local fullWidth = size.x - 40
+        local searchWidth = fullWidth * 0.52
+        local buttonWidth = fullWidth * 0.18
+        local labelWidth = fullWidth * 0.07
+        local inputWidth = fullWidth * 0.15
+        local columnWidth = (fullWidth - 20) / 3
+        local inputFieldWidth = columnWidth * 0.8
+
+        imgui.PushItemWidth(searchWidth)
         imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
+        imgui.PopItemWidth()
+
         imgui.SameLine()
-        if imgui.Button(u8("Обновить цены")) then
+        if imgui.Button(u8("Обновить цены"), imgui.ImVec2(buttonWidth, 0)) then
             downloadConfigFile(function()
                 loadData()
+                applyConversionRates()
                 sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Цены успешно обновлены.{FFFFFF}.", -1)
             end)
         end
 
+        -- Убраны метки "Скупка:" и "Продажа:"
+
+        imgui.SameLine()
+        imgui.PushItemWidth(inputWidth)
+        local changedBuy = imgui.InputText("##conversionRateBuy", conversionRateBuyBuf, ffi.sizeof(conversionRateBuyBuf))
+        imgui.PopItemWidth()
+
+        imgui.SameLine()
+        imgui.PushItemWidth(inputWidth)
+        local changedSell = imgui.InputText("##conversionRateSell", conversionRateSellBuf, ffi.sizeof(conversionRateSellBuf))
+        imgui.PopItemWidth()
+
+        if imgui.IsItemHovered() then
+            imgui.SetTooltip(u8("Коэффициент для пересчёта цены продажи"))
+        end
+        if changedSell then sellInputChanged = true end
+        if not imgui.IsItemActive() and sellInputChanged then
+            local val = decode(conversionRateSellBuf)
+            local num = tonumber(val)
+            if num and num > 0 then
+                conversionRateSell = num
+                applyConversionRates()
+            end
+            sellInputChanged = false
+        end
+
+        if changedBuy then buyInputChanged = true end
+        if not imgui.IsItemActive() and buyInputChanged then
+            local val = decode(conversionRateBuyBuf)
+            local num = tonumber(val)
+            if num and num > 0 then
+                conversionRateBuy = num
+                applyConversionRates()
+            end
+            buyInputChanged = false
+        end
+
         imgui.Separator()
-        local width = imgui.GetContentRegionAvail().x
-        local colWidth = (width - 20) / 3
+
         local filter = toLowerCyrillic(decode(search))
         local filtered = {}
 
@@ -271,11 +367,12 @@ function main()
 
         if #filtered > 0 then
             imgui.BeginChild("##scroll", imgui.ImVec2(-1, imgui.GetContentRegionAvail().y), true)
+
             local pos = imgui.GetCursorScreenPos()
             local y0 = pos.y - imgui.GetStyle().ItemSpacing.y
             local y1 = pos.y + imgui.GetContentRegionAvail().y + imgui.GetScrollMaxY() + 7
-            local x0 = pos.x + colWidth
-            local x1 = pos.x + 2 * colWidth
+            local x0 = pos.x + columnWidth
+            local x1 = pos.x + 2 * columnWidth
             local sepColor = imgui.GetColorU32(imgui.Col.Separator)
             local draw = imgui.GetWindowDrawList()
             draw:AddLine(imgui.ImVec2(x0, y0), imgui.ImVec2(x0, y1), sepColor, 1)
@@ -283,16 +380,15 @@ function main()
 
             imgui.Columns(3, nil, false)
             for _, header in ipairs({u8("Товар"), u8("Скупка"), u8("Продажа")}) do
-                imgui.SetCursorPosX(imgui.GetCursorPosX() + (colWidth - imgui.CalcTextSize(header).x) / 2)
+                imgui.SetCursorPosX(imgui.GetCursorPosX() + (columnWidth - imgui.CalcTextSize(header).x) / 2)
                 imgui.Text(header)
                 imgui.NextColumn()
             end
 
             imgui.Separator()
-            local inputWidth = colWidth * 0.8
             for i, v in ipairs(filtered) do
                 for idx, buf in ipairs({v.name_buf, v.buy_buf, v.sell_buf}) do
-                    imgui.SetCursorPosX(imgui.GetCursorPosX() + (colWidth - inputWidth) / 2)
+                    imgui.SetCursorPosX(imgui.GetCursorPosX() + (columnWidth - inputFieldWidth) / 2)
                     if imgui.InputText("##"..idx..i, buf, ffi.sizeof(buf)) then
                         local val = decode(buf)
                         if idx == 1 then v.name = val elseif idx == 2 then v.buy = val else v.sell = val end
