@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.13")
+script_version("1.14")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -84,6 +84,8 @@ local function loadData()
         if not (name and buy and sell) then break end
         table.insert(items, {
             name = name,
+            buy_orig = buy,
+            sell_orig = sell,
             buy = buy,
             sell = sell,
             name_buf = ffi.new("char[128]", u8(name)),
@@ -98,8 +100,8 @@ local function saveData()
     local out = {}
     for _, v in ipairs(items) do
         table.insert(out, v.name)
-        table.insert(out, v.buy)
-        table.insert(out, v.sell)
+        table.insert(out, v.buy_orig)
+        table.insert(out, v.sell_orig)
     end
     saveToFile(configPath, table.concat(out, "\n") .. "\n")
 end
@@ -201,12 +203,10 @@ end
 
 local function applyConversionRates()
     for _, item in ipairs(items) do
-        local buyNum = strToNumber(item.buy)
-        local sellNum = strToNumber(item.sell)
+        local buyNum = strToNumber(item.buy_orig)
+        local sellNum = strToNumber(item.sell_orig)
         local newBuy = formatPrice(math.floor(buyNum * conversionRateBuy + 0.5))
         local newSell = formatPrice(math.floor(sellNum * conversionRateSell + 0.5))
-        item.buy = newBuy
-        item.sell = newSell
         ffi.copy(item.buy_buf, u8(newBuy))
         ffi.copy(item.sell_buf, u8(newSell))
     end
@@ -215,11 +215,13 @@ end
 local function theme()
     local s, c = imgui.GetStyle(), imgui.Col
     local clr = s.Colors
+
     s.WindowRounding = 0
     s.WindowTitleAlign = imgui.ImVec2(0.5, 0.84)
     s.ChildRounding = 0
     s.FrameRounding = 5.0
     s.ItemSpacing = imgui.ImVec2(10, 10)
+
     clr[c.Text] = imgui.ImVec4(0.85, 0.86, 0.88, 1)
     clr[c.WindowBg] = imgui.ImVec4(0.05, 0.08, 0.10, 1)
     clr[c.ChildBg] = imgui.ImVec4(0.05, 0.08, 0.10, 1)
@@ -233,14 +235,18 @@ local function theme()
     clr[c.TitleBgActive] = imgui.ImVec4(0.05, 0.08, 0.10, 1)
     clr[c.TitleBgCollapsed] = imgui.ImVec4(0.05, 0.08, 0.10, 1)
     clr[c.Separator] = imgui.ImVec4(0.20, 0.25, 0.30, 1)
-    s.ScrollbarSize = 14
-    s.ScrollbarRounding = 6
-    s.GrabRounding = 6
-    clr[c.ScrollbarBg] = imgui.ImVec4(0.05, 0.07, 0.09, 0.6)
-    clr[c.ScrollbarGrab] = imgui.ImVec4(0.30, 0.40, 0.50, 0.9)
-    clr[c.ScrollbarGrabHovered] = imgui.ImVec4(0.40, 0.50, 0.60, 1)
-    clr[c.ScrollbarGrabActive] = imgui.ImVec4(0.50, 0.60, 0.70, 1)
+
+    s.ScrollbarSize = 18
+    s.ScrollbarRounding = 0
+    s.GrabRounding = 0
+    s.GrabMinSize = 38
+
+    clr[c.ScrollbarBg] = imgui.ImVec4(0.04, 0.06, 0.07, 0.8)
+    clr[c.ScrollbarGrab] = imgui.ImVec4(0.15, 0.15, 0.18, 1.0)
+    clr[c.ScrollbarGrabHovered] = imgui.ImVec4(0.25, 0.25, 0.28, 1.0)
+    clr[c.ScrollbarGrabActive] = imgui.ImVec4(0.35, 0.35, 0.38, 1.0)
 end
+
 
 function main()
     createConfigFolder()
@@ -299,8 +305,7 @@ function main()
         local fullWidth = size.x - 40
         local searchWidth = fullWidth * 0.52
         local buttonWidth = fullWidth * 0.18
-        local labelWidth = fullWidth * 0.07
-        local inputWidth = fullWidth * 0.15
+        local inputWidth = fullWidth * 0.10
         local columnWidth = (fullWidth - 20) / 3
         local inputFieldWidth = columnWidth * 0.8
 
@@ -317,20 +322,30 @@ function main()
             end)
         end
 
-        -- Убраны метки "Скупка:" и "Продажа:"
-
         imgui.SameLine()
         imgui.PushItemWidth(inputWidth)
         local changedBuy = imgui.InputText("##conversionRateBuy", conversionRateBuyBuf, ffi.sizeof(conversionRateBuyBuf))
         imgui.PopItemWidth()
+        if imgui.IsItemHovered() then
+            imgui.SetTooltip(u8("Курс VC$ для цены скупки"))
+        end
+        if changedBuy then buyInputChanged = true end
+        if not imgui.IsItemActive() and buyInputChanged then
+            local val = decode(conversionRateBuyBuf)
+            local num = tonumber(val)
+            if num and num > 0 then
+                conversionRateBuy = num
+                applyConversionRates()
+            end
+            buyInputChanged = false
+        end
 
         imgui.SameLine()
         imgui.PushItemWidth(inputWidth)
         local changedSell = imgui.InputText("##conversionRateSell", conversionRateSellBuf, ffi.sizeof(conversionRateSellBuf))
         imgui.PopItemWidth()
-
         if imgui.IsItemHovered() then
-            imgui.SetTooltip(u8("Коэффициент для пересчёта цены продажи"))
+            imgui.SetTooltip(u8("Курс VC$ для цены продажи"))
         end
         if changedSell then sellInputChanged = true end
         if not imgui.IsItemActive() and sellInputChanged then
@@ -341,17 +356,6 @@ function main()
                 applyConversionRates()
             end
             sellInputChanged = false
-        end
-
-        if changedBuy then buyInputChanged = true end
-        if not imgui.IsItemActive() and buyInputChanged then
-            local val = decode(conversionRateBuyBuf)
-            local num = tonumber(val)
-            if num and num > 0 then
-                conversionRateBuy = num
-                applyConversionRates()
-            end
-            buyInputChanged = false
         end
 
         imgui.Separator()
@@ -380,31 +384,44 @@ function main()
 
             imgui.Columns(3, nil, false)
             for _, header in ipairs({u8("Товар"), u8("Скупка"), u8("Продажа")}) do
-                imgui.SetCursorPosX(imgui.GetCursorPosX() + (columnWidth - imgui.CalcTextSize(header).x) / 2)
+                imgui.SetCursorPosX(imgui.GetCursorPosX() + (columnWidth * 0.1))
                 imgui.Text(header)
                 imgui.NextColumn()
             end
-
             imgui.Separator()
+
             for i, v in ipairs(filtered) do
-                for idx, buf in ipairs({v.name_buf, v.buy_buf, v.sell_buf}) do
-                    imgui.SetCursorPosX(imgui.GetCursorPosX() + (columnWidth - inputFieldWidth) / 2)
-                    if imgui.InputText("##"..idx..i, buf, ffi.sizeof(buf)) then
-                        local val = decode(buf)
-                        if idx == 1 then v.name = val elseif idx == 2 then v.buy = val else v.sell = val end
-                    end
-                    imgui.NextColumn()
+                local cursorStart = imgui.GetCursorPosX()
+                local inputWidth = columnWidth * 0.8
+                imgui.SetCursorPosX(cursorStart + (columnWidth - inputWidth) / 2)
+                if imgui.InputText("##name" .. i, v.name_buf, ffi.sizeof(v.name_buf)) then
+                    v.name = decode(v.name_buf)
                 end
+                imgui.NextColumn()
+
+                local cursorStart = imgui.GetCursorPosX()
+                local inputWidth = columnWidth * 0.8
+                imgui.SetCursorPosX(cursorStart + (columnWidth - inputWidth) / 2)
+                if imgui.InputText("##buy" .. i, v.buy_buf, ffi.sizeof(v.buy_buf)) then
+                    v.buy = decode(v.buy_buf)
+                    v.buy_orig = v.buy
+                end
+                imgui.NextColumn()
+
+                local cursorStart = imgui.GetCursorPosX()
+                local inputWidth = columnWidth * 0.8
+                imgui.SetCursorPosX(cursorStart + (columnWidth - inputWidth) / 2)
+                if imgui.InputText("##sell" .. i, v.sell_buf, ffi.sizeof(v.sell_buf)) then
+                    v.sell = decode(v.sell_buf)
+                    v.sell_orig = v.sell
+                end
+                imgui.NextColumn()
             end
-            imgui.Columns(1)
             imgui.EndChild()
         else
-            local text_message = u8("Товары не найдены.")
-            local text_size = imgui.CalcTextSize(text_message)
-            local window_size = imgui.GetContentRegionAvail()
-            imgui.SetCursorPosX((window_size.x - text_size.x) * 0.5)
-            imgui.SetCursorPosY((window_size.y - text_size.y) * 1)
-            imgui.Text(text_message)
+            local center = imgui.GetWindowContentRegionWidth() / 2
+            imgui.SetCursorPosX(center - 70)
+            imgui.Text(u8("Товар не найден"))
         end
 
         imgui.End()
