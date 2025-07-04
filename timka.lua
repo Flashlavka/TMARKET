@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.14")
+script_version("1.00")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -383,11 +383,13 @@ function main()
             draw:AddLine(imgui.ImVec2(x1, y0), imgui.ImVec2(x1, y1), sepColor, 1)
 
             imgui.Columns(3, nil, false)
-            for _, header in ipairs({u8("Товар"), u8("Скупка"), u8("Продажа")}) do
-                imgui.SetCursorPosX(imgui.GetCursorPosX() + (columnWidth * 0.1))
-                imgui.Text(header)
-                imgui.NextColumn()
-            end
+for _, header in ipairs({u8("Товар"), u8("Скупка"), u8("Продажа")}) do
+    local textSize = imgui.CalcTextSize(header)
+    local cursorX = imgui.GetCursorPosX()
+    imgui.SetCursorPosX(cursorX + (columnWidth - textSize.x) / 2)
+    imgui.Text(header)
+    imgui.NextColumn()
+end
             imgui.Separator()
 
             for i, v in ipairs(filtered) do
