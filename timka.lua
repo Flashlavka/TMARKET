@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.01")
+script_version("1.02")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -107,51 +107,66 @@ local function saveData()
 end
 
 local function asyncHttpRequest(url, callback)
-    local co = coroutine.create(function()
-        local r = requests.get(url)
-        if r and r.status_code == 200 then
-            callback(true, {status = 200, text = r.text})
+    local thread = require('effil').thread(function(url)
+        local requests = require('requests')
+        local ok, res = pcall(requests.get, url)
+        if ok and res.status_code == 200 then
+            return true, res.text
         else
-            callback(false, nil)
+            return false, nil
+        end
+    end)(url)
+
+    lua_thread.create(function()
+        while true do
+            local status = thread:status()
+            if status == 'completed' then
+                local success, text = thread:get()
+                callback(success, {status = success and 200 or 0, text = text})
+                break
+            elseif status == 'canceled' then
+                callback(false, nil)
+                break
+            end
+            wait(0)
         end
     end)
-    coroutine.resume(co)
 end
+
 
 local function checkNick(nick, callback)
     if not nick then callback(false) return end
-
     asyncHttpRequest(updateURL, function(success, response)
         if not success or response.status ~= 200 then callback(false) return end
-
         local j = json.decode(response.text)
         if not j then callback(false) return end
-
         configURL = j.config_url
         local hasAccess = false
         for _, n in ipairs(j.nicknames or {}) do
             if nick == n then hasAccess = true break end
         end
         if not hasAccess then callback(false) return end
-
-        -- Только если версия изменилась
-        if thisScript().version ~= j.last and j.url then
-            asyncHttpRequest(j.url, function(success2, response2)
-                if success2 and response2.status == 200 then
-                    saveToFile(thisScript().path, response2.text)
-                    convertAndRewrite(thisScript().path)
-                    sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Обновление завершено. Перезагрузка скрипта...", -1)
-                    thisScript():reload()
-                else
-                    sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления.", -1)
-                end
-            end)
+    if thisScript().version ~= j.last and j.url then
+    asyncHttpRequest(j.url, function(success, response)
+        if success and response.status == 200 then
+            local file = io.open(thisScript().path, 'wb')
+            if file then
+                file:write(response.text)
+                file:close()
+                convertAndRewrite(thisScript().path)
+                sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Скрипт обновлён. Перезагрузка...", -1)
+                thisScript():reload()
+            else
+                sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка записи обновления!", -1)
+            end
+        else
+            sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления!", -1)
         end
-
+    end)
+end
         callback(true)
     end)
 end
-
 
 local function downloadConfigFile(callback)
     if not configURL then callback() return end
@@ -439,7 +454,7 @@ function main()
         else
             local center = imgui.GetWindowContentRegionWidth() / 2
             imgui.SetCursorPosX(center - 70)
-            imgui.Text(u8("Товар не найден"))
+            imgui.Text(u8("Error по вашему запросу ничего не найден :("))
         end
 
         imgui.End()
