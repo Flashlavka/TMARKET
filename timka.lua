@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.00")
+script_version("1.01")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -120,27 +120,38 @@ end
 
 local function checkNick(nick, callback)
     if not nick then callback(false) return end
+
     asyncHttpRequest(updateURL, function(success, response)
         if not success or response.status ~= 200 then callback(false) return end
+
         local j = json.decode(response.text)
         if not j then callback(false) return end
+
         configURL = j.config_url
         local hasAccess = false
         for _, n in ipairs(j.nicknames or {}) do
             if nick == n then hasAccess = true break end
         end
         if not hasAccess then callback(false) return end
+
+        -- Только если версия изменилась
         if thisScript().version ~= j.last and j.url then
-            downloadUrlToFile(j.url, thisScript().path, function(_, status)
-                if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
+            asyncHttpRequest(j.url, function(success2, response2)
+                if success2 and response2.status == 200 then
+                    saveToFile(thisScript().path, response2.text)
                     convertAndRewrite(thisScript().path)
+                    sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Обновление завершено. Перезагрузка скрипта...", -1)
                     thisScript():reload()
+                else
+                    sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления.", -1)
                 end
             end)
         end
+
         callback(true)
     end)
 end
+
 
 local function downloadConfigFile(callback)
     if not configURL then callback() return end
@@ -306,8 +317,8 @@ function main()
         local searchWidth = fullWidth * 0.52
         local buttonWidth = fullWidth * 0.18
         local inputWidth = fullWidth * 0.10
-        local columnWidth = (fullWidth - 20) / 3
-        local inputFieldWidth = columnWidth * 0.8
+        local columnWidth = fullWidth / 3
+        local inputFieldWidth = columnWidth * 0.7
 
         imgui.PushItemWidth(searchWidth)
         imgui.InputTextWithHint("##search", u8("Поиск по товарам..."), search, ffi.sizeof(search))
@@ -383,42 +394,47 @@ function main()
             draw:AddLine(imgui.ImVec2(x1, y0), imgui.ImVec2(x1, y1), sepColor, 1)
 
             imgui.Columns(3, nil, false)
-for _, header in ipairs({u8("Товар"), u8("Скупка"), u8("Продажа")}) do
-    local textSize = imgui.CalcTextSize(header)
-    local cursorX = imgui.GetCursorPosX()
-    imgui.SetCursorPosX(cursorX + (columnWidth - textSize.x) / 2)
-    imgui.Text(header)
-    imgui.NextColumn()
-end
+
+            local headers = {u8("Товар"), u8("Скупка"), u8("Продажа")}
+            for _, header in ipairs(headers) do
+                local textSize = imgui.CalcTextSize(header)
+                local cursorX = imgui.GetCursorPosX()
+                imgui.SetCursorPosX(cursorX + (columnWidth - textSize.x) / 2)
+                imgui.Text(header)
+                imgui.NextColumn()
+            end
+
             imgui.Separator()
 
             for i, v in ipairs(filtered) do
+                imgui.PushItemWidth(inputFieldWidth)
+
                 local cursorStart = imgui.GetCursorPosX()
-                local inputWidth = columnWidth * 0.8
-                imgui.SetCursorPosX(cursorStart + (columnWidth - inputWidth) / 2)
+                imgui.SetCursorPosX(cursorStart + (columnWidth - inputFieldWidth) / 2)
                 if imgui.InputText("##name" .. i, v.name_buf, ffi.sizeof(v.name_buf)) then
                     v.name = decode(v.name_buf)
                 end
                 imgui.NextColumn()
 
-                local cursorStart = imgui.GetCursorPosX()
-                local inputWidth = columnWidth * 0.8
-                imgui.SetCursorPosX(cursorStart + (columnWidth - inputWidth) / 2)
+                cursorStart = imgui.GetCursorPosX()
+                imgui.SetCursorPosX(cursorStart + (columnWidth - inputFieldWidth) / 2)
                 if imgui.InputText("##buy" .. i, v.buy_buf, ffi.sizeof(v.buy_buf)) then
                     v.buy = decode(v.buy_buf)
                     v.buy_orig = v.buy
                 end
                 imgui.NextColumn()
 
-                local cursorStart = imgui.GetCursorPosX()
-                local inputWidth = columnWidth * 0.8
-                imgui.SetCursorPosX(cursorStart + (columnWidth - inputWidth) / 2)
+                cursorStart = imgui.GetCursorPosX()
+                imgui.SetCursorPosX(cursorStart + (columnWidth - inputFieldWidth) / 2)
                 if imgui.InputText("##sell" .. i, v.sell_buf, ffi.sizeof(v.sell_buf)) then
                     v.sell = decode(v.sell_buf)
                     v.sell_orig = v.sell
                 end
                 imgui.NextColumn()
+
+                imgui.PopItemWidth()
             end
+
             imgui.EndChild()
         else
             local center = imgui.GetWindowContentRegionWidth() / 2
