@@ -1,6 +1,6 @@
 {
-  "version": "1.00",
-  "download": "https://raw.githubusercontent.com/Flashlavka/TMARKET/main/Tmarket_protected.luac", 
+  "version": "1.01",
+  "download": "https://raw.githubusercontent.com/Flashlavka/TMARKET/main/Tmark.luac", 
   "config_url": "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/market_price.ini",
   "nicknames": [
     "Alex_Greenfield",
