@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.07")
+script_version("1.08")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -36,13 +36,6 @@ local buyInputChanged = false
 local sellInputChanged = false
 
 local lastWindowSize = {x = windowSize.x, y = windowSize.y}
-
-local update = {
-    available = false,
-    version = nil,
-    download = nil,
-    description = nil
-}
 
 local function createConfigFolder()
     local attr = lfs.attributes(configFolder)
@@ -164,14 +157,10 @@ function checkUpdates()
                 local newVersion = tonumber(newVersion)
                 
                 if newVersion > currentVersion then
-                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {90EE90}Доступно новое обновление %s! Начинаю автоматическую загрузку...", data.version), -1)
                     downloadUrlToFile(data.download, thisScript().path, function(id, status)
                         if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
                             convertAndRewrite(thisScript().path)
-                            sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Обновление завершено. Перезагрузка скрипта...", -1)
                             thisScript():reload()
-                        elseif status == moonloader.download_status.STATUSEX_ERROR then
-                            sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления.", -1)
                         end
                     end)
                 end
@@ -180,7 +169,6 @@ function checkUpdates()
     end
 
     local function onError(error)
-        sampAddChatMessage(string.format("{A47AFF}[Tmarket] {FF4C4C}Не удалось проверить обновления: %s", tostring(error)), -1)
     end
 
     asyncHttpRequest(
