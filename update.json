@@ -1,7 +1,7 @@
 {
-  "version": "1.03", // Актуальная версия скрипта (например, 1.03, если это новая версия)
-  "download": "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/timka.lua", // Прямая ссылка на новую версию скрипта .lua
-  "description": "Исправлены ошибки и добавлена новая функциональность.", // Описание изменений в обновлении
+  "version": "1.03",
+  "download": "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/timka.lua", 
+  "description": "Исправлены ошибки и добавлена новая функциональность.",
   "config_url": "https://raw.githubusercontent.com/Flashlavka/TMARKET/refs/heads/main/market_price.ini",
   "nicknames": [
     "Alex_Greenfield",
