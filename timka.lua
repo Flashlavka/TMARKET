@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.02")
+script_version("1.03")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -10,6 +10,7 @@ local iconv = require("iconv")
 local imgui = require("mimgui")
 local json = require("json")
 local lfs = require("lfs")
+local effil = require("effil") -- Добавлено для асинхронных запросов
 
 encoding.default = "CP1251"
 local u8 = encoding.UTF8
@@ -35,6 +36,13 @@ local buyInputChanged = false
 local sellInputChanged = false
 
 local lastWindowSize = {x = windowSize.x, y = windowSize.y}
+
+local update = {
+    available = false,
+    version = nil,
+    download = nil,
+    description = nil
+}
 
 local function createConfigFolder()
     local attr = lfs.attributes(configFolder)
@@ -106,66 +114,109 @@ local function saveData()
     saveToFile(configPath, table.concat(out, "\n") .. "\n")
 end
 
-local function asyncHttpRequest(url, callback)
-    local thread = require('effil').thread(function(url)
-        local requests = require('requests')
-        local ok, res = pcall(requests.get, url)
-        if ok and res.status_code == 200 then
-            return true, res.text
+-- Новая функция для асинхронных HTTP-запросов (аналогично autoad.lua)
+function asyncHttpRequest(method, url, args, resolve, reject)
+    local request_thread = effil.thread(function (method, url, args)
+        local requests = require 'requests'
+        local result, response = pcall(requests.request, method, url, args)
+        if result then
+            response.json, response.xml = nil, nil
+            return true, response
         else
-            return false, nil
+            return false, response
         end
-    end)(url)
-
+    end)(method, url, args)
+    
+    if not resolve then resolve = function() end end
+    if not reject then reject = function() end end
+    
     lua_thread.create(function()
+        local runner = request_thread
         while true do
-            local status = thread:status()
-            if status == 'completed' then
-                local success, text = thread:get()
-                callback(success, {status = success and 200 or 0, text = text})
-                break
-            elseif status == 'canceled' then
-                callback(false, nil)
-                break
+            local status, err = runner:status()
+            if not err then
+                if status == 'completed' then
+                    local result, response = runner:get()
+                    if result then
+                        resolve(response)
+                    else
+                        reject(response)
+                    end
+                    return
+                elseif status == 'canceled' then
+                    return reject(status)
+                end
+            else
+                return reject(err)
             end
             wait(0)
         end
     end)
 end
 
+-- Новая функция для проверки обновлений (аналогично autoad.lua)
+function checkUpdates()
+    local function onSuccess(response)
+        if response.status_code == 200 then
+            local data = json.decode(response.text)
+            if data and data.version and data.download then
+                local currentVersion, _ = thisScript().version:gsub('%.', '')
+                local currentVersion = tonumber(currentVersion)
+                local newVersion, _ = data.version:gsub('%.', '')
+                local newVersion = tonumber(newVersion)
+                
+                if newVersion > currentVersion then
+                    update.available = true
+                    update.version = data.version
+                    update.download = data.download
+                    update.description = data.description
+                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {90EE90}Доступно обновление %s! Нажмите кнопку 'Обновить' в меню для загрузки.", data.version), -1)
+                end
+            end
+        end
+    end
+
+    local function onError(error)
+        sampAddChatMessage(string.format("{A47AFF}[Tmarket] {FF4C4C}Не удалось проверить обновления: %s", tostring(error)), -1)
+    end
+
+    asyncHttpRequest(
+        'GET',
+        updateURL,
+        { headers = { ['content-type'] = 'application/json' } },
+        onSuccess,
+        onError
+    )
+end
 
 local function checkNick(nick, callback)
     if not nick then callback(false) return end
-    asyncHttpRequest(updateURL, function(success, response)
-        if not success or response.status ~= 200 then callback(false) return end
-        local j = json.decode(response.text)
-        if not j then callback(false) return end
-        configURL = j.config_url
-        local hasAccess = false
-        for _, n in ipairs(j.nicknames or {}) do
-            if nick == n then hasAccess = true break end
-        end
-        if not hasAccess then callback(false) return end
-    if thisScript().version ~= j.last and j.url then
-    asyncHttpRequest(j.url, function(success, response)
-        if success and response.status == 200 then
-            local file = io.open(thisScript().path, 'wb')
-            if file then
-                file:write(response.text)
-                file:close()
-                convertAndRewrite(thisScript().path)
-                sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Скрипт обновлён. Перезагрузка...", -1)
-                thisScript():reload()
-            else
-                sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка записи обновления!", -1)
+
+    asyncHttpRequest(
+        'GET',
+        updateURL,
+        { headers = { ['content-type'] = 'application/json' } },
+        function(response)
+            if response.status_code ~= 200 then callback(false) return end
+
+            local j = json.decode(response.text)
+            if not j then callback(false) return end
+
+            configURL = j.config_url
+            local hasAccess = false
+            for _, n in ipairs(j.nicknames or {}) do
+                if nick == n then hasAccess = true break end
             end
-        else
-            sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления!", -1)
+            
+            -- Удален блок автообновления скрипта здесь, так как он теперь в checkUpdates
+            
+            callback(hasAccess)
+        end,
+        function(error)
+            sampAddChatMessage(string.format("{A47AFF}[Tmarket] {FF4C4C}Ошибка при проверке ника: %s", tostring(error)), -1)
+            callback(false)
         end
-    end)
-end
-        callback(true)
-    end)
+    )
 end
 
 local function downloadConfigFile(callback)
@@ -290,6 +341,7 @@ function main()
                     if window[0] then saveData() end
                     window[0] = not window[0]
                 end)
+                checkUpdates() -- Проверяем обновления после загрузки скрипта
             end)
         else
             sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFD700} %s{FFFFFF}, у вас {FF4C4C}нет доступа к скрипту{FFFFFF}.", cachedNick or "?"), -1)
@@ -347,6 +399,16 @@ function main()
                 sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Цены успешно обновлены.{FFFFFF}.", -1)
             end)
         end
+
+        imgui.SameLine()
+        if imgui.Button(u8("Обновить скрипт"), imgui.ImVec2(buttonWidth, 0)) then -- Добавлена кнопка "Обновить скрипт"
+            if update.available and update.download then
+                os.execute('explorer ' .. update.download)
+            else
+                sampAddChatMessage("{A47AFF}[Tmarket] {FFD700}Нет доступных обновлений или не удалось получить ссылку.{FFFFFF}.", -1)
+            end
+        end
+
 
         imgui.SameLine()
         imgui.PushItemWidth(inputWidth)
@@ -454,7 +516,7 @@ function main()
         else
             local center = imgui.GetWindowContentRegionWidth() / 2
             imgui.SetCursorPosX(center - 70)
-            imgui.Text(u8("Error по вашему запросу ничего не найден :("))
+            imgui.Text(u8("Товар не найден"))
         end
 
         imgui.End()
