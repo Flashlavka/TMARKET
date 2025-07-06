@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.05")
+script_version("1.06")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -10,7 +10,7 @@ local iconv = require("iconv")
 local imgui = require("mimgui")
 local json = require("json")
 local lfs = require("lfs")
-local effil = require("effil") -- Добавлено для асинхронных запросов
+local effil = require("effil")
 
 encoding.default = "CP1251"
 local u8 = encoding.UTF8
@@ -114,7 +114,6 @@ local function saveData()
     saveToFile(configPath, table.concat(out, "\n") .. "\n")
 end
 
--- Новая функция для асинхронных HTTP-запросов (аналогично autoad.lua)
 function asyncHttpRequest(method, url, args, resolve, reject)
     local request_thread = effil.thread(function (method, url, args)
         local requests = require 'requests'
@@ -154,7 +153,6 @@ function asyncHttpRequest(method, url, args, resolve, reject)
     end)
 end
 
--- Новая функция для проверки обновлений (аналогично autoad.lua)
 function checkUpdates()
     local function onSuccess(response)
         if response.status_code == 200 then
@@ -166,11 +164,16 @@ function checkUpdates()
                 local newVersion = tonumber(newVersion)
                 
                 if newVersion > currentVersion then
-                    update.available = true
-                    update.version = data.version
-                    update.download = data.download
-                    update.description = data.description
-                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {90EE90}Доступно обновление %s! Нажмите кнопку 'Обновить скрипт' в меню для загрузки.", data.version), -1)
+                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {90EE90}Доступно новое обновление %s! Начинаю автоматическую загрузку...", data.version), -1)
+                    downloadUrlToFile(data.download, thisScript().path, function(id, status)
+                        if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
+                            convertAndRewrite(thisScript().path)
+                            sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Обновление завершено. Перезагрузка скрипта...", -1)
+                            thisScript():reload()
+                        elseif status == moonloader.download_status.STATUSEX_ERROR then
+                            sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления.", -1)
+                        end
+                    end)
                 end
             end
         end
@@ -207,8 +210,6 @@ local function checkNick(nick, callback)
             for _, n in ipairs(j.nicknames or {}) do
                 if nick == n then hasAccess = true break end
             end
-            
-            -- Удален блок автообновления скрипта здесь, так как он теперь в checkUpdates
             
             callback(hasAccess)
         end,
@@ -324,7 +325,6 @@ local function theme()
     clr[c.ScrollbarGrabActive] = imgui.ImVec4(0.35, 0.35, 0.38, 1.0)
 end
 
-
 function main()
     createConfigFolder()
     repeat wait(0) until isSampAvailable()
@@ -341,7 +341,7 @@ function main()
                     if window[0] then saveData() end
                     window[0] = not window[0]
                 end)
-                checkUpdates() -- Проверяем обновления после загрузки скрипта
+                checkUpdates()
             end)
         else
             sampAddChatMessage(string.format("{A47AFF}[Tmarket]{FFD700} %s{FFFFFF}, у вас {FF4C4C}нет доступа к скрипту{FFFFFF}.", cachedNick or "?"), -1)
@@ -399,27 +399,6 @@ function main()
                 sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Цены успешно обновлены.{FFFFFF}.", -1)
             end)
         end
-
-        imgui.SameLine()
-        -- ИЗМЕНЕННЫЙ БЛОК:
-        if imgui.Button(u8("Обновить скрипт"), imgui.ImVec2(buttonWidth, 0)) then
-            if update.available and update.download then
-                sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Начинаю загрузку обновления...", -1)
-                downloadUrlToFile(update.download, thisScript().path, function(id, status)
-                    if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
-                        convertAndRewrite(thisScript().path) -- Преобразуем кодировку, если нужно
-                        sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Обновление завершено. Перезагрузка скрипта...", -1)
-                        thisScript():reload() -- Перезагружаем скрипт
-                    elseif status == moonloader.download_status.STATUSEX_ERROR then
-                        sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления.", -1)
-                    end
-                end)
-            else
-                sampAddChatMessage("{A47AFF}[Tmarket] {FFD700}Нет доступных обновлений или не удалось получить ссылку.{FFFFFF}.", -1)
-            end
-        end
-        -- КОНЕЦ ИЗМЕНЕННОГО БЛОКА
-
 
         imgui.SameLine()
         imgui.PushItemWidth(inputWidth)
