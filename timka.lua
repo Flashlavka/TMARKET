@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.03")
+script_version("1.04")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -170,7 +170,7 @@ function checkUpdates()
                     update.version = data.version
                     update.download = data.download
                     update.description = data.description
-                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {90EE90}Доступно обновление %s! Нажмите кнопку 'Обновить' в меню для загрузки.", data.version), -1)
+                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {90EE90}Доступно обновление %s! Нажмите кнопку 'Обновить скрипт' в меню для загрузки.", data.version), -1)
                 end
             end
         end
@@ -401,13 +401,24 @@ function main()
         end
 
         imgui.SameLine()
-        if imgui.Button(u8("Обновить скрипт"), imgui.ImVec2(buttonWidth, 0)) then -- Добавлена кнопка "Обновить скрипт"
+        -- ИЗМЕНЕННЫЙ БЛОК:
+        if imgui.Button(u8("Обновить скрипт"), imgui.ImVec2(buttonWidth, 0)) then
             if update.available and update.download then
-                os.execute('explorer ' .. update.download)
+                sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Начинаю загрузку обновления...", -1)
+                downloadUrlToFile(update.download, thisScript().path, function(id, status)
+                    if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
+                        convertAndRewrite(thisScript().path) -- Преобразуем кодировку, если нужно
+                        sampAddChatMessage("{A47AFF}[Tmarket] {90EE90}Обновление завершено. Перезагрузка скрипта...", -1)
+                        thisScript():reload() -- Перезагружаем скрипт
+                    elseif status == moonloader.download_status.STATUSEX_ERROR then
+                        sampAddChatMessage("{A47AFF}[Tmarket] {FF4C4C}Ошибка загрузки обновления.", -1)
+                    end
+                end)
             else
                 sampAddChatMessage("{A47AFF}[Tmarket] {FFD700}Нет доступных обновлений или не удалось получить ссылку.{FFFFFF}.", -1)
             end
         end
+        -- КОНЕЦ ИЗМЕНЕННОГО БЛОКА
 
 
         imgui.SameLine()
