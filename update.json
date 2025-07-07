@@ -1,6 +1,6 @@
 {
-  "version": "1.01",
-  "download": "https://raw.githubusercontent.com/Flashlavka/TMARKET/main/Tmark.luac", 
+  "version": "1.02",
+  "download": "https://raw.githubusercontent.com/Flashlavka/TMARKET/main/detdsa_protected.luac", 
   "config_url": "https://raw.githubusercontent.com/Flashlavka/testsetcfg/refs/heads/main/marker_price.cfg",
   "nicknames": [
     "Alex_Greenfield",
