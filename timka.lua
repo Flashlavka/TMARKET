@@ -1,6 +1,6 @@
 script_name("Tmarket")
 script_author("legacy.")
-script_version("1.08")
+script_version("1.02")
 
 local ffi = require("ffi")
 local encoding = require("encoding")
@@ -151,15 +151,26 @@ function checkUpdates()
         if response.status_code == 200 then
             local data = json.decode(response.text)
             if data and data.version and data.download then
-                local currentVersion, _ = thisScript().version:gsub('%.', '')
-                local currentVersion = tonumber(currentVersion)
-                local newVersion, _ = data.version:gsub('%.', '')
-                local newVersion = tonumber(newVersion)
+                local currentVersion = thisScript().version
+                local newVersion = data.version
                 
-                if newVersion > currentVersion then
+                -- Безопасное преобразование версии в число для сравнения
+                -- Удаляем все нецифровые символы, кроме точек, и затем точки
+                local function parseVersion(versionStr)
+                    if type(versionStr) ~= "string" then return 0 end
+                    local cleaned = versionStr:gsub("[^0-9.]", "") -- Оставляем только цифры и точки
+                    cleaned = cleaned:gsub("%.", "") -- Удаляем точки
+                    return tonumber(cleaned) or 0 -- Если не удается преобразовать, используем 0
+                end
+
+                local currentVersionNum = parseVersion(currentVersion)
+                local newVersionNum = parseVersion(newVersion)
+                
+                if newVersionNum > currentVersionNum then
+                    sampAddChatMessage(string.format("{A47AFF}[Tmarket] {FFFFFF}/tm | %s", currentVersion), -1) -- Текущая версия
                     downloadUrlToFile(data.download, thisScript().path, function(id, status)
                         if status == moonloader.download_status.STATUSEX_ENDDOWNLOAD then
-                            convertAndRewrite(thisScript().path)
+                            sampAddChatMessage("{FF8888}[Tmarket] {FFFFFF}Скрипт обновлен", -1) -- Сообщение об обновлении
                             thisScript():reload()
                         end
                     end)
@@ -169,8 +180,9 @@ function checkUpdates()
     end
 
     local function onError(error)
+        -- sampAddChatMessage(string.format("{A47AFF}[Tmarket] {FF4C4C}Ошибка при проверке обновлений: %s", tostring(error)), -1)
     end
-
+    
     asyncHttpRequest(
         'GET',
         updateURL,
@@ -217,6 +229,7 @@ local function downloadConfigFile(callback)
         end
     end)
 end
+
 
 local function getNicknameSafe()
     local ok, id = sampGetPlayerIdByCharHandle(PLAYER_PED)
